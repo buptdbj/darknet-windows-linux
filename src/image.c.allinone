@@ -1,9 +1,12 @@
 #include "image.h"
+//#include "cJSON.h"
 #include "utils.h"
 #include "blas.h"
 #include "cuda.h"
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
+#include <time.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -24,11 +27,70 @@
 #endif
 
 int windows = 0;
-extern n_person;
-extern saveFrame;
-extern saveBrand;
+int state = 0;
+int count = 0, count_tmp = 0;
+int person_num = 2;
 
 float colors[6][3] = { {1,0,1}, {0,0,1},{0,1,1},{0,1,0},{1,1,0},{1,0,0} };
+
+FILE *f_json, *f_result;
+
+char *getTime()
+{
+	time_t timep;
+	time(&timep);
+	char tmp[64];
+	strftime(tmp, sizeof(tmp), "%Y-%m-%d %H:%M:%S", localtime(&timep));
+	return tmp;
+}
+
+int get_count(int unload, int person)
+{
+	f_json = fopen("./model.json", "r");
+	f_result = fopen("./result.txt", "a+");
+	if (unload == 1 && state == 1)
+	{
+		count_tmp = 0;
+		//cvframe
+	}
+	if (unload == 1 && state == 0)
+	{
+		state = 1;
+		char *s_time = getTime();
+		fprintf(f_result, "%d/", person_num);
+		fflush(f_result);
+		fprintf(f_result, "%s/", s_time);
+		fflush(f_result);
+		//fputs("aaaaaa", f_result);
+		//printf("%s", s_time);
+		//writestart
+		//cvframe
+		//time
+	}
+	if (unload == 0 && state == 1)
+	{
+		//cvframe
+		if (count_tmp >= 200)
+		{
+			//cvstop
+			state = 0;
+			count_tmp = 0;
+			count++;
+			char *e_time = getTime();
+			fprintf(f_result, "%s/", e_time);
+			fflush(f_result);
+			fprintf(f_result, "%d\n", count);
+			fflush(f_result);
+		}
+		else
+			count_tmp++;
+	}
+	else
+		;
+	fclose(f_result);
+	fclose(f_json);
+	return count;
+}
 
 float get_color(int c, int x, int max)
 {
@@ -440,49 +502,60 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
 
 #ifdef OPENCV
 
-void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, int ext_output)//add  saveFrame
+int draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, int ext_output)
 {
-	//Opreating current Frame
-    int i, j;
-   // int result[2]={0};
-    n_person=0;
-    saveFrame=0;
-    saveBrand=0;
-	//modified
-	//int saveFrame = 0;
-	//int count = 0;
-	//saveFrame = 0;
-	//end modifued
-
+	int i, j;
+	int saveFrame = 0;
+	int result[2] = { 0 };
+	int	unload=0;
+	char unload_flag[] = "unload";
+	char person_flag[] = "person";
+	int count_num;
+	int person = 0;
     if (!show_img) return;
     static int frame_id = 0;
     frame_id++;
 
-	//for i in boxs find classid
-    for (i = 0; i < num; ++i) {
+    for (i = 0; i < num; ++i)
+	{
         char labelstr[4096] = { 0 };
         int class_id = -1;
-		//int unloading = -1;
-
-		//for j in classes find class_id
-        for (j = 0; j < classes; ++j) {
-            if (dets[i].prob[j] > thresh) {
-                if (class_id < 0) {
+        for (j = 0; j < classes; ++j)
+		{
+			unload = 0;
+            if (dets[i].prob[j] > thresh)
+			{
+                if (class_id < 0)
+				{
                     strcat(labelstr, names[j]);
                     class_id = j;
+					if (strcmp(names[j], unload_flag) == 0)
+					{
+						unload = 1;
+					}
+					if (strcmp(names[j], person_flag) == 0)
+					{
+						person++;
+					}
                 }
                 else {
                     strcat(labelstr, ", ");
                     strcat(labelstr, names[j]);
+					if (strcmp(names[j], unload_flag) == 0)
+					{
+						unload = 1;
+					}
+					if (strcmp(names[j], person_flag) == 0)
+					{
+						person++;
+					}
                 }
                 printf("%s: %.0f%% ", names[j], dets[i].prob[j] * 100);
-				/*if (names[j] == 'unload') {
-					unloading = j;
-				}*/
+				//printf("%d\t", unload);
             }
         }
-		//if found classid\B8draw box with class names
-        //ONE box only have ONE classid 
+		count_num = get_count(unload, person);
+
         if (class_id >= 0) {
             int width = show_img->height * .006;
 
@@ -557,11 +630,18 @@ void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float t
             //cvResetImageROI(copy_img);
 
             cvRectangle(show_img, pt1, pt2, color, width, 8, 0);
-            if (ext_output)
-                printf("\t(left_x: %4.0f   top_y: %4.0f   width: %4.0f   height: %4.0f)\n", 
-                    (float)left, (float)top, b.w*show_img->width, b.h*show_img->height);
-            else
-                printf("\n");
+			if (ext_output)
+			{
+				printf("\t(left_x: %4.0f   top_y: %4.0f   width: %4.0f   height: %4.0f)",
+					(float)left, (float)top, b.w*show_img->width, b.h*show_img->height);
+				//printf("\t%d", count_num);
+				//printf("\n");
+			}
+			else
+			{
+				//printf("\t%d", count_num);
+				printf("\n");
+			}
             cvRectangle(show_img, pt_text_bg1, pt_text_bg2, color, width, 8, 0);
             cvRectangle(show_img, pt_text_bg1, pt_text_bg2, color, CV_FILLED, 8, 0);    // filled
             CvScalar black_color;
@@ -570,52 +650,20 @@ void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float t
             cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, font_size, font_size, 0, font_size * 3, 8);
             cvPutText(show_img, labelstr, pt_text, &font, black_color);
         }
-//modified		
-		
-		if ((!strcmp(labelstr, "unload1"))||(!strcmp(labelstr, "unload2"))) {
+		if (!strcmp(labelstr, "unload")) {
 			saveFrame = 1;
-        }
-        
-        if (!strcmp(labelstr, "person"))
-        {
-            n_person++;
-        }
- 		if ((!strcmp(labelstr, "brand"))||(!strcmp(labelstr, "brand"))) {
-			saveBrand = 1;
-        }
-               
+		}
 
-	
-    }
-	//if (saveFrame == 1) {
-	//	// you should create directory: result_img
-	//	static int copied_frame_id = -1;
-	//	static IplImage* copy_img = NULL;
-	//	if (copied_frame_id != frame_id) {
-	//	    copied_frame_id = frame_id;
-	//	    if(copy_img == NULL) copy_img = cvCreateImage(cvSize(show_img->width, show_img->height), show_img->depth, show_img->nChannels);
-	//	    cvCopy(show_img, copy_img, 0);
-	//	}
-	//	static int img_id = 0;
-	//	img_id++;
-	//	char image_name[1024];
-	//	sprintf(image_name, "result_img/img_%d_%d.jpg", frame_id, img_id);
-	//	//CvRect rect = cvRect(pt1.x, pt1.y, pt2.x - pt1.x, pt2.y - pt1.y);
-	//	//cvSetImageROI(copy_img, rect);
-	//	cvSaveImage(image_name, copy_img, 0);
-	//	cvResetImageROI(copy_img);
-	//}
-//end modified
-
-    
+	}
+	printf("Complete so far:%d\n", count_num);
+	printf("person_num:%d\n", person);
+	person_num = person;
+	//result[0] = saveFrame;
+	//result[1] = person_num;
     if (ext_output) {
         fflush(stdout);
     }
-    //printf("n_person:%d\n",n_person);
-    //result[0]=saveFrame;
-    //result[1]=n_person;
-    //printf("%d\n",result);
-    //return result;
+	return saveFrame;
 }
 
 void draw_detections_cv(IplImage* show_img, int num, float thresh, box *boxes, float **probs, char **names, image **alphabet, int classes)

@@ -48,7 +48,7 @@ static IplImage* ipl_images[FRAMES];
 static float *avg;
 
 void draw_detections_cv(IplImage* show_img, int num, float thresh, box *boxes, float **probs, char **names, image **alphabet, int classes);
-void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, int ext_output);
+int draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, int ext_output);
 void show_image_cv_ipl(IplImage *disp, const char *name);
 image get_image_from_stream_resize(CvCapture *cap, int w, int h, int c, IplImage** in_img, int cpp_video_capture, int dont_close);
 image get_image_from_stream_letterbox(CvCapture *cap, int w, int h, int c, IplImage** in_img, int cpp_video_capture, int dont_close);
@@ -66,54 +66,8 @@ int stopcount = 0;
 int stopcount_pre=0;
 int drop_state = -1;
 int init_state=1;
-int saveFrame=-1;
-int saveFramePre=-1;
-int startSaveBrand=0;
-//Brand--------------
-int saveBrand=-1;
-int saveBrandPre=-1;
-int stopcount_b = 0;
-int stopcount_b_pre=0;
-int n_brand=0;
-int n_brand_pre=0;
-int drop_state_b=-1;
-int init_state_b=1;
-int wait_flag_b=0;
-int saveBrandCount=0;
-int cnt=0;
-#define TH_B 25
-#define SAVETH_B 9
-//Brand End----------
-int n_person=-1;
-int wait_flag=0;
-int saveFrameCount=0;
-CvSize size;
-int src_fps = 25;
-char time_tmp[64]="";
-#define SAVETH 15
-#define TH 50
 
-char* getTime()
-{
-    time_t timep;
-    time(&timep);
-    //timep=timep+8*3600; //transform timezone
-    //char tmp[64]={'\0'};
-    strftime(time_tmp, sizeof(time_tmp), "%Y-%m-%d %H:%M:%S", localtime(&timep));
-/*
-    struct tm* t=gmtime(&timep);
-
-    sprintf(time_tmp,"%d-%02d-%02d %02d:%02d:%02d",
-            t->tm_year + 1900,
-            t->tm_mon + 1,
-            t->tm_mday,
-            t->tm_hour,
-            t->tm_min,
-            t->tm_sec
-            );
-*/
-    return time_tmp;
-}
+//int* saveFrame = 0;
 //END MODIFY
 void *fetch_in_thread(void *ptr)
 {
@@ -136,9 +90,10 @@ void *fetch_in_thread(void *ptr)
 
 void *detect_in_thread(void *ptr)
 {
-    //int *res;
+	int *p= NULL;
+	int person=0;
     float nms = .45;    // 0.4F
-    //int saveFrame=-1;
+    int saveFrame=-1;
     layer l = net.layers[net.n-1];
     float *X = det_s.data;
     float *prediction = network_predict(net, X);
@@ -169,107 +124,39 @@ void *detect_in_thread(void *ptr)
     det_img = ipl_images[(demo_index + FRAMES / 2 + 1) % FRAMES];
     demo_index = (demo_index + 1)%FRAMES;
 
-    draw_detections_cv_v3(det_img, dets, nboxes, demo_thresh, demo_names, demo_alphabet, demo_classes, demo_ext_output);//add saveFrame
-	//saveFrame=draw_detections_cv_v3(det_img, dets, nboxes, demo_thresh, demo_names, demo_alphabet, demo_classes, demo_ext_output);//add saveFrame
-    //MODIFIED 
+    saveFrame = draw_detections_cv_v3(det_img, dets, nboxes, demo_thresh, demo_names, demo_alphabet, demo_classes, demo_ext_output);//add saveFrame
+
+	//saveFrame = *p;
+	//person = *(p + 1);
+	//printf("saveFrame:%d\n,person:%d\n", saveFrame, person);
+	//MODIFIED 
     printf("saveFrame:%d\n",saveFrame);	
     n_tube_pre=n_tube;
-    if (stopcount_pre>TH)
-        init_state=0;
     if (saveFrame && init_state)
     {
-        wait_flag=1;
         init_state=0;
-        //n_tube++;
+        n_tube++;
     }
-
-    /*if (stopcount_pre>25 && saveFrame)
-    {
-        init_state=0;
-        n_tube++;   
-    }*/
-    if (stopcount_pre>TH && saveFrame)
-        wait_flag=1;
-    if (wait_flag && stopcount_pre <= TH && (saveFrame==1) && (saveFramePre==1))
-    {
-        saveFrameCount++;
-        if (saveFrameCount>=SAVETH)
-        {
-            init_state=0;
-            n_tube++;
-            saveFrameCount=0;
-            wait_flag=0;
-        }
-    }
-
-
+    if (stopcount_pre>25 && saveFrame)
+        n_tube++;
 	if (saveFrame != 1)
 		stopcount++;
     else
         stopcount=0;
-    /*
-    if (stopcount_pre>25 && saveFrame)
-        n_tube++;    
-        */
-	if (stopcount > TH) {
+	if (stopcount > 25) {
 		printf("DROP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-       // cvReleaseImage(&det_img);
+        //cvReleaseImage(&det_img);
         drop_state=1;
-        wait_flag=0;
-        saveFrameCount=0;
+       // if (saveFrame)
+         //   n_tube++;
     }
     else
         drop_state=0;
     stopcount_pre=stopcount;
-    saveFramePre=saveFrame;
-    //n_tube_pre=n_tube;
-
     printf("stopcount:%d\n",stopcount );
-    //printf("n_tube:%d\n",n_tube );
-    printf("n_person:%d\n",n_person);
+    printf("n_tube:%d\n",n_tube );
 	//END MODIFY
-	//-----------------------------------------------------------------------------
-    //-----------------------------------------------------------------------------
-    //----------------------saveBrand----------------------------------------------
-    printf("saveBrand:%d\n",saveBrand); 
-    n_brand_pre=n_brand;
-    if (stopcount_b_pre>TH_B)
-        init_state_b=0;
-    if (saveBrand && init_state_b)
-    {
-        wait_flag_b=1;
-        init_state_b=0;
-    }
-    if (stopcount_b_pre>TH && saveBrand)
-        wait_flag_b=1;
-    if (wait_flag_b && stopcount_b_pre <= TH_B && (saveBrand==1) && (saveBrandPre==1))
-    {
-        saveBrandCount++;
-        if (saveBrandCount>=SAVETH_B)
-        {
-            init_state_b=0;
-            n_brand++;
-            saveBrandCount=0;
-            wait_flag_b=0;
-        }
-    }
-    if (saveBrand != 1)
-        stopcount_b++;
-    else
-        stopcount_b=0;
-    if (stopcount > TH_B) {
-        drop_state_b=1;
-        wait_flag_b=0;
-        saveBrandCount=0;
-    }
-    else
-        drop_state_b=0;
-    stopcount_b_pre=stopcount_b;
-    saveBrandPre=saveBrand;
-    printf("stopcount_b:%d\n",stopcount_b);
-    //printf("n_brand:%d\n",n_brand );
-    //-----------------------------------------------------------------------------
-    //------------------------------------------------------------------------------
+	
     free_detections(dets, nboxes);
 
     return 0;
@@ -285,7 +172,7 @@ double get_wall_time()
 }
 
 void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int cam_index, const char *filename, char **names, int classes,
-    int frame_skip, char *prefix, char *out_filename, int http_stream_port, int dont_show, int ext_output, int gpu)
+    int frame_skip, char *prefix, char *out_filename, int http_stream_port, int dont_show, int ext_output)
 {
 
 
@@ -298,9 +185,6 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
     demo_thresh = thresh;
     demo_ext_output = ext_output;
     printf("Demo\n");
-#ifdef GPU
-	cuda_set_device(gpu);
-#endif
     net = parse_network_cfg_custom(cfgfile, 1);    // set batch=1
     if(weightfile){
         load_weights(&net, weightfile);
@@ -374,34 +258,24 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
     }
 
     CvVideoWriter* output_video_writer = NULL;
-    //MODIFIED
-    FILE *f_result;
-    f_result = fopen("./result.txt", "w");
-    //END MODIFY
-    //OUTPUT COMPLETED VIDEO FILES
-    
-    CvVideoWriter* output_complete_video_writer = NULL;    // cv::VideoWriter output_video;
+/*
+    CvVideoWriter* output_video_writer = NULL;    // cv::VideoWriter output_video;
     if (out_filename && !flag_exit)
     {
-        char out_filename_complete[50];
-        //CvSize size;//gloable
+        CvSize size;
         size.width = det_img->width, size.height = det_img->height;
-        //int src_fps = 25;//gloable
+        int src_fps = 25;
         src_fps = get_stream_fps(cap, cpp_video_capture);
 
         //const char* output_name = "test_dnn_out.avi";
         //output_video_writer = cvCreateVideoWriter(out_filename, CV_FOURCC('H', '2', '6', '4'), src_fps, size, 1);
-        sprintf(out_filename_complete, "%s.mp4",out_filename);
-        output_complete_video_writer = cvCreateVideoWriter(out_filename_complete, CV_FOURCC('x', '2', '6', '4'), src_fps, size, 1);
-        //output_complete_video_writer = cvCreateVideoWriter(out_filename_complete, CV_FOURCC('D', 'I', 'V', 'X'), src_fps, size, 1);
-        printf("COMPLETED VIDEO WRITER CREATED!!");
+        output_video_writer = cvCreateVideoWriter(out_filename, CV_FOURCC('D', 'I', 'V', 'X'), src_fps, size, 1);
         //output_video_writer = cvCreateVideoWriter(out_filename, CV_FOURCC('M', 'J', 'P', 'G'), src_fps, size, 1);
-        //output_complete_video_writer = cvCreateVideoWriter(out_filename_complete, CV_FOURCC('M', 'P', '4', 'V'), src_fps, size, 1);
-        //output_complete_video_writer = cvCreateVideoWriter(out_filename_complete, CV_FOURCC('M', 'P', '4', '2'), src_fps, size, 1);
+        //output_video_writer = cvCreateVideoWriter(out_filename, CV_FOURCC('M', 'P', '4', 'V'), src_fps, size, 1);
+        //output_video_writer = cvCreateVideoWriter(out_filename, CV_FOURCC('M', 'P', '4', '2'), src_fps, size, 1);
         //output_video_writer = cvCreateVideoWriter(out_filename, CV_FOURCC('X', 'V', 'I', 'D'), src_fps, size, 1);
         //output_video_writer = cvCreateVideoWriter(out_filename, CV_FOURCC('W', 'M', 'V', '2'), src_fps, size, 1);
-    }
-    //END DEFINE
+    }*/
 
     double before = get_wall_time();
 
@@ -437,77 +311,47 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
             if (http_stream_port > 0 && show_img) {
                 //int port = 8090;
                 int port = http_stream_port;
-                int timeout = 20000;
-                int jpeg_quality = 10;    // 1 - 100
+                int timeout = 200;
+                int jpeg_quality = 30;    // 1 - 100
                 send_mjpeg(show_img, port, timeout, jpeg_quality);
             }
 
-            // save complete video file -writeframes
+            // save video file 
             /*
-            if (output_complete_video_writer && show_img) {
-                cvWriteFrame(output_complete_video_writer, show_img);
-                //printf("\n cvWriteFrame \n");
-            } */
-            //end write frames
-			
+            if (output_video_writer && show_img) {
+                cvWriteFrame(output_video_writer, show_img);
+                printf("\n cvWriteFrame \n");
+            } 
+			*/
 			//MODIFIED!! save video file------------------------------------------------------------------------------
             //printf("1\n");
             //CvVideoWriter* output_video_writer = NULL;    // cv::VideoWriter output_video;
             //printf("2\n");
-            printf("n_tube:%d\n",n_tube);
             printf("n_tube_pre:%d\n",n_tube_pre);
             //if ((out_filename && !flag_exit && n_tube==1)||(out_filename && !flag_exit && n_tube - n_tube_pre > 0))
             if (out_filename && !flag_exit && n_tube - n_tube_pre > 0)
             {
                 //printf("3\n");
-                /*
-                if (output_video_writer) {
+                if (output_video_writer) 
                     cvReleaseVideoWriter(&output_video_writer);
-                    //write time and n_tube_pre
-                    char *e_time = getTime();
-                    fprintf(f_result, "%s/", e_time);
-                    fflush(f_result);
-                    fprintf(f_result, "%d\n", n_tube_pre);
-                    fflush(f_result);
-                    printf("e_time:%s\n",e_time);
-                }*/
-
                 output_video_writer = NULL; 
                 char out_filenames[50];
                 //printf("3.1\n");
                 //out_filenames = out_filename;
                 //printf("3.1.1\n");
-                sprintf(out_filenames, "%s-%d.mp4",out_filename,n_tube);
+                sprintf(out_filenames, "%s-%d.avi",out_filename,n_tube);
                 //printf("3.2\n");
-                //CvSize size;
-                //size.width = det_img->width, size.height = det_img->height;
-                //int src_fps = 25;
+                CvSize size;
+                size.width = det_img->width, size.height = det_img->height;
+                int src_fps = 25;
                // printf("3.3\n");
-                //src_fps = get_stream_fps(cap, cpp_video_capture);
-                //output_video_writer = cvCreateVideoWriter(out_filenames, CV_FOURCC('D', 'I', 'V', 'X'), src_fps, size, 1);
-                output_video_writer = cvCreateVideoWriter(out_filenames, CV_FOURCC('X', '2', '6', '4'), src_fps, size, 1);
-                //output_video_writer = cvCreateVideoWriter(out_filenames, CV_FOURCC('M', 'P', '4', 'V'), src_fps, size, 1);
-                //output_video_writer = cvCreateVideoWriter(out_filenames, CV_FOURCC('M', 'P', '4', '2'), src_fps, size, 1);
+                src_fps = get_stream_fps(cap, cpp_video_capture);
+                output_video_writer = cvCreateVideoWriter(out_filenames, CV_FOURCC('D', 'I', 'V', 'X'), src_fps, size, 1);
                 printf("VIDEO FILE CREATED!!!!!\nsrc_fps:%d\n",src_fps);
-                //write time and n_peson to file 
-                char *s_time = getTime();
-                fprintf(f_result, "%d/", n_person);
-                fflush(f_result);
-                fprintf(f_result, "%s/", s_time);
-                fflush(f_result);
-                printf("s_time:%s\n",s_time );
                // printf("4\n");
 
             }
 
-
-            // save complete video file -writeframes
-            
-            if (output_complete_video_writer && show_img) {
-                cvWriteFrame(output_complete_video_writer, show_img);
-                //printf("\n cvWriteFrame \n");
-            } 
-            //end write frames
             //printf("5\n");
 			//if (output_video_writer && show_img && drop_state==0 && n_tube==n_tube_pre) {
             if (output_video_writer && show_img && drop_state==0 && n_tube==n_tube_pre) {
@@ -515,20 +359,6 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
 				cvWriteFrame(output_video_writer, show_img);
 				printf("\n cvWriteFrame \n");
 			}
-
-            if (drop_state==1)
-            {
-                if (output_video_writer) {
-                    cvReleaseVideoWriter(&output_video_writer);
-                    //write time and n_tube_pre
-                    char *e_time = getTime();
-                    fprintf(f_result, "%s/", e_time);
-                    fflush(f_result);
-                    fprintf(f_result, "%d\n", n_tube_pre);
-                    fflush(f_result);
-                    printf("e_time:%s\n",e_time);
-                }
-            }
 /*
 			if (drop_state==1) {
 				cvReleaseVideoWriter(&output_video_writer);//WRITING DONE AND CLOSE!!
@@ -550,33 +380,6 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
                 else
                     printf("UNABLE to REopen!!\n");
             }*/
-            //----------------------------saveBrand----------------------------------------------------
-            //-----------------------------------------------------------------------------------------
-           // int startSaveBrand=0;
-            //int cnt=0;              
-            printf("cnt:%d\n",cnt);
-            char brand_filenames[256];
-            printf("n_brand:%d\n",n_brand);
-            printf("n_brand_pre:%d\n",n_brand_pre);
-            printf("StartSaveBrand:%d\n",startSaveBrand);
-            if (out_filename&&!flag_exit && n_brand - n_brand_pre > 0)
-            {
-                startSaveBrand=1;
-                cnt=0;
-                printf("Start saveBrand!!!!!!!!!\n");
-            }
-            if (startSaveBrand && show_img && drop_state_b==0 && saveBrand && n_brand==n_brand_pre && cnt<5) {
-                //cvWriteFrame(output_video_writer, show_img);
-                cnt++;
-                sprintf(brand_filenames, "%s_Brand%d_%d.jpg",out_filename,n_brand,cnt);
-                cvSaveImage(brand_filenames, show_img, 0);
-                printf("\n cvSaveImage \n");
-            }
-            if (drop_state_b&&startSaveBrand)
-                startSaveBrand=0;
-
-            //--------------------------------saveBrand End---------------------------------------
-            //-------------------------------------------------------------------------------------
 			//MODIFIED END--------------------------------------------------------------------------------------------
 
 
@@ -621,10 +424,6 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
     if (output_video_writer) {
         cvReleaseVideoWriter(&output_video_writer);
         printf("output_video_writer closed. \n");
-    }
-    if (output_complete_video_writer) {
-        cvReleaseVideoWriter(&output_complete_video_writer);
-        printf("output_complete_video_writer closed. \n");
     }
 
     // free memory

@@ -1,0 +1,17 @@
+#!/bin/sh
+#CH="ch1"
+CH="$1-$2-$3-$4"
+SHELL_NAME="yechuan37_ch1.sh"
+#PORT=2333
+PORT=$5
+LIVEDIR="/var/www/html/$CH"
+#CURDIR=$(cd $(dirname ${BASH_SOURCE[0]}); pwd )
+if [ ! -d LIVEDIR ]; then
+    mkdir -p $LIVEDIR
+fi
+rm $LIVEDIR/*.ts
+rm $LIVEDIR/live.m3u8
+#nohup $CURDIR/$SHELL_NAME >/dev/null&
+sleep 10s
+nohup /usr/bin/ffmpeg -i http://127.0.0.1:$PORT -c:v libx264 -preset slow -c:a copy -f hls -threads 8 -hls_time 5 -hls_list_size 12 -hls_wrap 12 -crf 35 $LIVEDIR/live.m3u8 >/dev/null&
+

@@ -24,9 +24,6 @@
 #endif
 
 int windows = 0;
-extern n_person;
-extern saveFrame;
-extern saveBrand;
 
 float colors[6][3] = { {1,0,1}, {0,0,1},{0,1,1},{0,1,0},{1,1,0},{1,0,0} };
 
@@ -440,31 +437,16 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
 
 #ifdef OPENCV
 
-void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, int ext_output)//add  saveFrame
+void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, int ext_output)
 {
-	//Opreating current Frame
     int i, j;
-   // int result[2]={0};
-    n_person=0;
-    saveFrame=0;
-    saveBrand=0;
-	//modified
-	//int saveFrame = 0;
-	//int count = 0;
-	//saveFrame = 0;
-	//end modifued
-
     if (!show_img) return;
     static int frame_id = 0;
     frame_id++;
 
-	//for i in boxs find classid
     for (i = 0; i < num; ++i) {
         char labelstr[4096] = { 0 };
         int class_id = -1;
-		//int unloading = -1;
-
-		//for j in classes find class_id
         for (j = 0; j < classes; ++j) {
             if (dets[i].prob[j] > thresh) {
                 if (class_id < 0) {
@@ -476,13 +458,8 @@ void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float t
                     strcat(labelstr, names[j]);
                 }
                 printf("%s: %.0f%% ", names[j], dets[i].prob[j] * 100);
-				/*if (names[j] == 'unload') {
-					unloading = j;
-				}*/
             }
         }
-		//if found classid\B8draw box with class names
-        //ONE box only have ONE classid 
         if (class_id >= 0) {
             int width = show_img->height * .006;
 
@@ -570,52 +547,10 @@ void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float t
             cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, font_size, font_size, 0, font_size * 3, 8);
             cvPutText(show_img, labelstr, pt_text, &font, black_color);
         }
-//modified		
-		
-		if ((!strcmp(labelstr, "unload1"))||(!strcmp(labelstr, "unload2"))) {
-			saveFrame = 1;
-        }
-        
-        if (!strcmp(labelstr, "person"))
-        {
-            n_person++;
-        }
- 		if ((!strcmp(labelstr, "brand"))||(!strcmp(labelstr, "brand"))) {
-			saveBrand = 1;
-        }
-               
-
-	
     }
-	//if (saveFrame == 1) {
-	//	// you should create directory: result_img
-	//	static int copied_frame_id = -1;
-	//	static IplImage* copy_img = NULL;
-	//	if (copied_frame_id != frame_id) {
-	//	    copied_frame_id = frame_id;
-	//	    if(copy_img == NULL) copy_img = cvCreateImage(cvSize(show_img->width, show_img->height), show_img->depth, show_img->nChannels);
-	//	    cvCopy(show_img, copy_img, 0);
-	//	}
-	//	static int img_id = 0;
-	//	img_id++;
-	//	char image_name[1024];
-	//	sprintf(image_name, "result_img/img_%d_%d.jpg", frame_id, img_id);
-	//	//CvRect rect = cvRect(pt1.x, pt1.y, pt2.x - pt1.x, pt2.y - pt1.y);
-	//	//cvSetImageROI(copy_img, rect);
-	//	cvSaveImage(image_name, copy_img, 0);
-	//	cvResetImageROI(copy_img);
-	//}
-//end modified
-
-    
     if (ext_output) {
         fflush(stdout);
     }
-    //printf("n_person:%d\n",n_person);
-    //result[0]=saveFrame;
-    //result[1]=n_person;
-    //printf("%d\n",result);
-    //return result;
 }
 
 void draw_detections_cv(IplImage* show_img, int num, float thresh, box *boxes, float **probs, char **names, image **alphabet, int classes)
